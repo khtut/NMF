@@ -5,8 +5,8 @@ import pandas as pd
 df = pd.read_csv("kasar2015-wgs-cll-mutations.tsv",sep='\t',header=0)
 
 sample = df['Sample']
-cat_idx = df['Category Index']
 cat = sorted(set(df['Category']))
+cat_idx = df['Category Index']
 dist = df['Distance to Nearest Mutation']
 samples = sorted(set(df['Sample']))
 sample_index = dict()
