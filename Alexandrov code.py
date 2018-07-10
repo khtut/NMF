@@ -1,35 +1,46 @@
 ########## Alexandrov data ##########
+from scipy.io import loadmat
 import numpy as np
-import scipy as sp
+import collections
 from sklearn.decomposition import NMF
-import NMFalgorithm as nmf
+#import NMFalgorithm as nmf
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 np.set_printoptions(suppress=True)
 
-V = sp.genfromtxt("Breast_genomes_mutational_catalog_96_subs.txt", delimiter="\t")[1:,1:]
-realsig = sp.genfromtxt("signatures.txt", delimiter="\t")[1:,3:]
+oldM = np.genfromtxt('Breast_genomes_mutational_catalog_96_subs.txt',delimiter='\t')[1:,1:]
+realsig = np.genfromtxt("signatures.txt", delimiter="\t")[1:,3:]
+realsig = realsig[:,[1,2,3,8,13]]
+numsig = realsig.shape[1]
 
-#using sklearn
-model = NMF(n_components=27,init='random',solver='mu',max_iter=2000)
-W = model.fit_transform(V)
-H_sk = model.components_
+#step 1: dimension reduction
+totalmutationsbytype = oldM.sum(axis=1)
+totalmutations = totalmutationsbytype.sum(axis=0)
+sortedtotalbytype = np.sort(totalmutationsbytype,axis=0)
+condition = np.cumsum(sortedtotalbytype) <= 0.01*totalmutations
+numberrowstoremove = len(np.extract(condition,sortedtotalbytype))
+M = np.delete(oldM,np.argsort(totalmutationsbytype)[np.arange(numberrowstoremove)],axis=0)
 
-#using own code
-W_own,H_own = nmf.nmf(V,27)
+#step 3 and 4: NMF, iterate
+sig = []
+iterations = 5
+for i in range(iterations):
+    P = np.zeros([M.shape[0],numsig])
+    model = NMF(n_components=numsig,init='random',solver='mu',max_iter=1000)
+    oldP = model.fit_transform(M)
+    norm = oldP.sum(axis=0)
+    for j in range(oldP.shape[1]):
+        P[:,j] = oldP[:,j]/norm[j]
+    sig.append(P)
+sig = np.array(sig)
+signatures = np.zeros([M.shape[0],sig.shape[0]*sig.shape[2]])
+for i in range(len(sig)):
+    signatures[:,np.arange(len(sig)*i,len(sig)*(i+1))] = sig[i]
 
-#clustering
-kmeans = KMeans(n_clusters=27).fit(W)
-W_sk = kmeans.cluster_centers_
+#step 5: cluster
+kmeans = KMeans(n_clusters=numsig)
+kmeans.fit(np.transpose(signatures))
+clustersig = kmeans.cluster_centers_
 
-#comparing model to own code
-diff = cosine_similarity(W_sk,W_own)
-diff1 = cosine_similarity(H_sk,H_own)
-print('Cosine similarity between model W and own W:\n',diff)
-print('Cosine similarity between model H and own H:\n',diff1)
-
-#comparing model signatures and my signatures to actual signatures
-diff2 = cosine_similarity(W_sk,realsig)
-print('Cosine similarity between model W and given W:\n',diff2)
-diff3 = cosine_similarity(W_own,realsig)
-print('Cosine similarity between own W and given W:\n',diff3)
+#cosine similarity
+diff = cosine_similarity(clustersig,np.transpose(realsig))
