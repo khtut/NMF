@@ -15,6 +15,7 @@ def importdata(file):
 
     #isolate counts after column of mutation types
     f = open(file)
+    #alternate way to read 2nd line and then read 1st line with having to close and reopen file?
     samples = f.readline().rstrip('\n').split('\t')[col+1:] 
     categories = []
     mutation_count = dict()
