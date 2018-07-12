@@ -11,6 +11,7 @@ def importdata(file):
     ##find column of mutation types by reading second line (row after column header) and looking for 'A[C>A]A'
     string = f.readlines()[1].rstrip('\n').split('\t')
     col = string.index('A[C>A]A')
+    #this is under the assumption that A[C>A]A is the first listed mutation type 
     f.close()
     ##isolate counts after column of mutation types
     f = open(file)
@@ -33,19 +34,19 @@ def importdata(file):
     return M
 
 a = 'Breast_genomes_mutational_catalog_96_subs.txt'
-oldM = importdata(a)
+data = importdata(a)
 b = 'signatures.txt'
 COSMICsig = importdata(b)
 ##isolate 5 breast cancer signatures
 COSMICsig = COSMICsig[:,[1,2,3,8,13]]
 
 ###step 1: dimension reduction
-totalmutationsbytype = oldM.sum(axis=1)
+totalmutationsbytype = data.sum(axis=1)
 totalmutations = totalmutationsbytype.sum(axis=0)
 sortedtotalbytype = np.sort(totalmutationsbytype,axis=0)
 condition = np.cumsum(sortedtotalbytype) <= 0.01*totalmutations
 rowstoremove = np.argsort(totalmutationsbytype)[np.arange(sum(condition))]
-M = np.delete(oldM,np.argsort(totalmutationsbytype)[np.arange(len(rowstoremove))],axis=0)
+reduced_data = np.delete(data,np.argsort(totalmutationsbytype)[np.arange(len(rowstoremove))],axis=0)
 
 ###step 2: bootstrapping
 def bootstrap(X, n=None):
@@ -60,22 +61,14 @@ numsig = COSMICsig.shape[1]
 sig = []
 iterations = 100
 for i in range(iterations):
-    ##bootstrap dimensionally reduced M
-    arr = []
-    for i in range(iterations):
-        M_resample = bootstrap(M)
-        arr.append(M_resample)
-    arr = np.array(arr)
-    ##average matrices
-    M = np.cumsum(arr,axis=0)[-1]/iterations
-
+    M = bootstrap(reduced_data)
     P = np.zeros([M.shape[0],numsig])
     model = NMF(n_components=numsig,init='random',solver='mu',max_iter=5000)
-    oldP = model.fit_transform(M)
+    modelP = model.fit_transform(M)
     ##scale columns of oldP and place results into P
-    norm = oldP.sum(axis=0)
-    for j in range(oldP.shape[1]):
-        P[:,j] = oldP[:,j]/norm[j]
+    norm = modelP.sum(axis=0)
+    for j in range(modelP.shape[1]):
+        P[:,j] = modelP[:,j]/norm[j]
     ##store P into sig
     sig.append(P)
 sig = np.array(sig)
