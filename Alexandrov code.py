@@ -56,14 +56,14 @@ def bootstrap(X, n=None):
     return X_resample
 
 ###steps 3, 4: NMF, iterate
-numsig = realsig.shape[1]
+numsig = COSMICsig.shape[1]
 sig = []
 iterations = 100
 for i in range(iterations):
     ##bootstrap dimensionally reduced M
     arr = []
     for i in range(iterations):
-        M_resample = bootstrap_resample(M)
+        M_resample = bootstrap(M)
         arr.append(M_resample)
     arr = np.array(arr)
     ##average matrices
