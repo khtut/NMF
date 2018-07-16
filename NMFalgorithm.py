@@ -1,9 +1,4 @@
-import numpy as np
-
-def cosineSimilarity(a,b):
-    num = sum([a.item(i)*b.item(i) for i in range(a.size)])
-    den = ((sum([a.item(i)**2 for i in range(a.size)]))**0.5)*((sum([b.item(i)**2 for i in range(b.size)]))**0.5)
-    return num/den      
+import numpy as np    
 
 ########## Basic NMF ##########
 
@@ -88,12 +83,3 @@ def nsnmf(V,k,theta):
         iteration = iteration + 1
 
     return W,H
-
-########## ARD-NMF ##########
-
-def div(beta,x,y): #definition of beta-divergence
-    if(beta == 0):
-        return x/y - np.log(x/y)/np.log(10)-1
-    if(beta == 1):
-        return x * np.log(x/y) - x + y
-    return x**beta/(beta*(beta-1)) + y**beta/beta - (x*y**(beta-1))/(beta-1) #for 0<beta<1
