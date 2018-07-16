@@ -3,7 +3,6 @@ import NMFalgorithm as nmf
 from sklearn.decomposition import NMF
 from sklearn.metrics.pairwise import cosine_similarity
 np.set_printoptions(suppress=True)
-#np.set_printoptions(threshold=np.nan)
 
 V = np.genfromtxt("example-mutation-counts.tsv", delimiter="\t")[1:,1:]
 realsig = np.load("example-signatures.npy")
