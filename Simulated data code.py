@@ -9,7 +9,7 @@ V = np.genfromtxt("example-mutation-counts.tsv", delimiter="\t")[1:,1:]
 realSig = np.load("example-signatures.npy")
 
 #using sklearn
-model = NMF(n_components=5,solver='mu',init='random')
+model = NMF(n_components=5, init='random', solver='mu')
 modelW = model.fit_transform(np.transpose(V))
 modelH = model.components_
 
@@ -19,8 +19,8 @@ for i in range(modelW.shape[1]):
     scalemodelW.append(modelW[:,i]/norm1[i])
 scalemodelW = np.array(scalemodelW)
 
-#using own implementation
+#using own code
 ownW,ownH = nmf.nmf(V,5)
 
-diff = cosine_similarity(scalemodelW,realSig)
-print('Comparing produced signature to given signatures:\n',diff)
+diff = cosine_similarity(scalemodelW, realSig)
+print('Comparing produced signature to given signatures:\n', diff)
