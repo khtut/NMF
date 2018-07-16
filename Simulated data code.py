@@ -5,22 +5,20 @@ from sklearn.metrics.pairwise import cosine_similarity
 import NMFalgorithm as nmf
 np.set_printoptions(suppress=True)
 
-V = np.genfromtxt("example-mutation-counts.tsv", delimiter="\t")[1:,1:]
+M = np.genfromtxt("example-mutation-counts.tsv", delimiter="\t")[1:,1:]
 realSig = np.load("example-signatures.npy")
 
 #using sklearn
-model = NMF(n_components=5, init='random', solver='mu')
-modelW = model.fit_transform(np.transpose(V))
+model = NMF(n_components=5, init='random', solver='mu',max_iter=500)
+modelW = model.fit_transform(M)
 modelH = model.components_
 
-scalemodelW = []
-norm1 = modelW.sum(axis=0)
-for i in range(modelW.shape[1]):
-    scalemodelW.append(modelW[:,i]/norm1[i])
-scalemodelW = np.array(scalemodelW)
-
 #using own code
-ownW,ownH = nmf.nmf(V,5)
+ownW,ownH = nmf.nmf(M,5)
 
-diff = cosine_similarity(scalemodelW, realSig)
-print('Comparing produced signature to given signatures:\n', diff)
+#comparing signatures
+diff = cosine_similarity(modelH, realSig)
+print('Comparing sklearn produced signature to given signatures:\n', diff)
+
+diff2 = cosine_similarity(ownH, realSig)
+print('Comparing own implementation produced signature to given signatures:\n', diff2)
