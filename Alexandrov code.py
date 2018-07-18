@@ -1,8 +1,11 @@
 ########## Alexandrov data ##########
 import numpy as np
+import scipy.io
+import matlab.engine
 from sklearn.decomposition import NMF
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
+import tsv
 np.set_printoptions(suppress=True)
 
 ###import Alexandrov data
@@ -46,22 +49,22 @@ totalmutations = totalmutationsbytype.sum(axis=0)
 sortedtotalbytype = np.sort(totalmutationsbytype,axis=0)
 condition = np.cumsum(sortedtotalbytype) <= 0.01*totalmutations
 rowstoremove = np.argsort(totalmutationsbytype)[np.arange(sum(condition))]
-reduced_data = np.delete(data,np.argsort(totalmutationsbytype)[np.arange(len(rowstoremove))],axis=0)
+reducedData = np.delete(data,np.argsort(totalmutationsbytype)[np.arange(len(rowstoremove))],axis=0)
+scipy.io.savemat('reducedData.mat',{'reducedData': reducedData})
 
 ###step 2: bootstrapping
-def bootstrap(X, n=None):
-    if n == None:
-        n = len(X) 
-    resample_i = np.floor(np.random.rand(n)*len(X)).astype(int)
-    X_resample = X[resample_i]
-    return X_resample
+def bootstrap(x):
+    res = eng.bootstrap(x)
+    res = np.array(res)
+    return res
 
 ###steps 3, 4: NMF, iterate
 numsig = COSMICsig.shape[1]
 sig = []
-iterations = 100
+iterations = 500
+eng = matlab.engine.start_matlab()
 for i in range(iterations):
-    M = bootstrap(reduced_data)
+    M = bootstrap('reducedData.mat')    
     P = np.zeros([M.shape[0],numsig])
     model = NMF(n_components=numsig,init='random',solver='mu',max_iter=5000)
     modelP = model.fit_transform(M)
