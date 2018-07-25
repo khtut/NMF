@@ -1,4 +1,3 @@
-########## Alexandrov data ##########
 import numpy as np
 import scipy.io as sp
 from sklearn.decomposition import NMF
@@ -85,5 +84,44 @@ def vanilla(a, n, iterations, b=None, var=None):
         paper_sig = paper_sig[:, [1,2,3,8,13]]     #don't know how to generalize this (extracting certain signatures)
         diff = cosine_similarity(model_sig.T, paper_sig.T)
         print('Comparing produced signatures to given signatures:\n', diff)
+
+    return model_sig
+
+####################
+#Nonsmooth NMF#
+####################
+
+def nonsmooth(reduced_data, n, iterations, theta):
+    sig = []
+    for i in range(iterations):
+        M = bootstrap(reduced_data)
+        P = np.zeros([M.shape[0], n])
+        modelP, H = nmfalg.nsnmf(M, n, theta)     #uses nsNMF code stored in NMFalgorithm.py
+        norm = modelP.sum(axis=0)
+        for j in range(modelP.shape[1]):
+            P[:,j] = modelP[:,j]/norm[j]
+        sig.append(P)
+    sig = np.array(sig)
+    signatures = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
+    for i in range(len(sig)):
+        signatures[:,np.arange(n*i, n*(i+1))] = sig[i]
+    return signatures
+  
+def nsnmf(a, n, iterations, theta, b=None, var=None):
+    data = import_data(a)
+    reduced_data, rows_to_remove = dimension_reduction(data)
+    signatures = nonsmooth(reduced_data, n, iterations, theta)
+    cluster_sig = kmeans(signatures, n)
+    model_sig = np.insert(cluster_sig.T, rows_to_remove, 0, axis=0)
+    
+    if b != None:
+      if '.mat' in b:
+        matlab_sig = sp.loadmat(b)[var]
+        diff = cosine_similarity(model_sig.T, matlab_sig.T)
+      else:
+        paper_sig = import_data(b)
+        paper_sig = paper_sig[:, [1,2,3,8,13]]
+        diff = cosine_similarity(model_sig.T, paper_sig.T)
+      print('Comparing produced signatures to given signatures:\n', diff)
 
     return model_sig
