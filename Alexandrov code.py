@@ -47,47 +47,47 @@ def bootstrap(data):
   
 def iterate_nmf(reduced_data, n, iterations):
     sig = []
+    exp = []
     for i in range(iterations):
         M = bootstrap(reduced_data)
         P = np.zeros([M.shape[0], n])
-        model = NMF(n_components=n, init='random', solver='mu', max_iter=1000000)
+        model = NMF(n_components=n, init='random', solver='mu', max_iter=1000)
         model_P = model.fit_transform(M)
+        model_E = model.components_
         norm = model_P.sum(axis=0)
         for j in range(model_P.shape[1]):
             P[:,j] = model_P[:,j]/norm[j]
         sig.append(P)
+        exp.append(model_E)
     sig = np.array(sig)
-    signatures = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
+    exp = np.array(exp)
+    model_sig = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
     for i in range(len(sig)):
-        signatures[:,np.arange(n*i, n*(i+1))] = sig[i]
-    return signatures
+        model_sig[:,np.arange(n*i, n*(i+1))] = sig[i]
+    model_exp = np.zeros([exp.shape[0]*exp.shape[1], M.shape[1]])
+    for i in range(len(exp)):
+        model_exp[np.arange(n*i, n*(i+1)),:] = exp[i]
+    return model_sig, model_exp
   
-def kmeans(signatures, n):
+def kmeans(model_sig, model_exp, n):
     kmeans = KMeans(n_clusters=n)
-    kmeans.fit(signatures.T) 
+    kmeans.fit(model_sig.T) 
     cluster_sig = kmeans.cluster_centers_
-    return cluster_sig
+    cluster_exp = []
+    for i in range(n):
+      new = model_exp[kmeans.labels_==i]
+      cluster_exp.append(np.mean(new, axis=0))
+    cluster_exp = np.array(cluster_exp)
+    return cluster_sig, cluster_exp
 
-#Make a function to compare produced sigs with given signature
-def vanilla(a, n, iterations, b=None, var=None):
+def vanilla(a, n, iterations):
     data = import_data(a)
     reduced_data, rows_to_remove = dimension_reduction(data)
-    signatures = iterate_nmf(reduced_data, n, iterations)
-    cluster_sig = kmeans(signatures, n)
-    model_sig = np.insert(cluster_sig.T, rows_to_remove, 0, axis=0)
-
-    if b != None:
-      if '.mat' in b:
-        matlab_sig = sp.loadmat(b)[var]
-        diff = cosine_similarity(model_sig.T, matlab_sig.T)
-        print('Comparing produced signatures to given signatures:\n', diff)
-      else:
-        paper_sig = import_data(b)
-        paper_sig = paper_sig[:, [1,2,3,8,13]]     #don't know how to generalize this (extracting certain signatures)
-        diff = cosine_similarity(model_sig.T, paper_sig.T)
-        print('Comparing produced signatures to given signatures:\n', diff)
-    #Return signatures and exposures
-    return model_sig
+    model_sig, model_exp = iterate_nmf(reduced_data, n, iterations)
+    cluster_sig, cluster_exp = kmeans(model_sig, model_exp, n)
+    signatures = np.insert(cluster_sig.T, rows_to_remove, 0, axis=0)
+    exposures = cluster_exp
+    return signatures, exposures
 
 ####################
 #Nonsmooth NMF#
@@ -107,26 +107,16 @@ def nonsmooth(reduced_data, n, iterations, theta):
     signatures = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
     for i in range(len(sig)):
         signatures[:,np.arange(n*i, n*(i+1))] = sig[i]
-    return signatures
+    return model_sig, model_exp
   
-def nsnmf(a, n, iterations, theta, b=None, var=None):
+def nsnmf(a, n, iterations, theta):
     data = import_data(a)
     reduced_data, rows_to_remove = dimension_reduction(data)
-    signatures = nonsmooth(reduced_data, n, iterations, theta)
-    cluster_sig = kmeans(signatures, n)
-    model_sig = np.insert(cluster_sig.T, rows_to_remove, 0, axis=0)
-    
-    if b != None:
-      if '.mat' in b:
-        matlab_sig = sp.loadmat(b)[var]
-        diff = cosine_similarity(model_sig.T, matlab_sig.T)
-      else:
-        paper_sig = import_data(b)
-        paper_sig = paper_sig[:, [1,2,3,8,13]]
-        diff = cosine_similarity(model_sig.T, paper_sig.T)
-      print('Comparing produced signatures to given signatures:\n', diff)
-    #Return signatures and exposures
-    return model_sig
+    model_sig, model_exp = nonsmooth(reduced_data, n, iterations, theta)
+    cluster_sig, cluster_exp = kmeans(model_sig, model_exp, n)
+    signatures = np.insert(cluster_sig.T, rows_to_remove, 0, axis=0)
+    exposures = cluster_exp
+    return signatures, exposures
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Has functions for vanilla NMF and non smooth NMF ")
