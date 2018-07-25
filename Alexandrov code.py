@@ -1,24 +1,18 @@
 ########## Alexandrov data ##########
 import numpy as np
-import scipy.io
-import matlab.engine
+import scipy.io as sp.io
 from sklearn.decomposition import NMF
 from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
-import tsv
+import NMFalgorithm as nmfalg
 np.set_printoptions(suppress=True)
 
-###import Alexandrov data
-def importdata(file):
-    f = open(file)
-    ##find column of mutation types by reading second line (row after column header) and looking for 'A[C>A]A'
+def import_data(filename):    
+    f = open(filename)
     string = f.readlines()[1].rstrip('\n').split('\t')
     col = string.index('A[C>A]A')
-    #this is under the assumption that A[C>A]A is the first listed mutation type 
     f.close()
-    ##isolate counts after column of mutation types
-    f = open(file)
-    #not sure how to solve issue of having to close and reopen file to read 2nd line and then read 1st line
+    f = open(filename)
     samples = f.readline().rstrip('\n').split('\t')[col+1:] 
     categories = []
     mutation_count = dict()
@@ -26,72 +20,65 @@ def importdata(file):
         arr = l.rstrip().split()
         cat = arr[col]
         categories.append(cat)
-        for count,s in zip(arr[col+1:],samples):
-            mutation_count[(cat,s)] = count
-    #sample sorting is omitted because signatures are not sorted properly for signatures.txt and is not needed for mutation data
+        for count, s in zip(arr[col+1:], samples):
+            mutation_count[(cat, s)] = count
     categories = sorted(categories)
-
-    ##create mutation count matrix
     M = np.array([[mutation_count[(c,s)] for s in samples] for c in categories])
     M = M.astype(np.float)
     return M
+  
+def dimension_reduction(data):
+    total_mutations_by_type = data.sum(axis=1)
+    total_mutations = total_mutations_by_type.sum(axis=0)
+    sorted_total_by_type = np.sort(total_mutations_by_type, axis=0)
+    condition = np.cumsum(sorted_total_by_type) <= 0.01*total_mutations
+    rows_to_remove = np.argsort(total_mutations_by_type)[np.arange(sum(condition))]
+    reduced_data = np.delete(
+        data,np.argsort(total_mutations_by_type)[np.arange(len(rows_to_remove))],
+        axis=0
+        )
+    return reduced_data, rows_to_remove
+  
+def bootstrap(data):
+    M = np.array([
+        np.random.multinomial(int(round(m_i.sum())), m_i/m_i.sum()) for m_i in data.T
+        ])
+    return M.T
+  
+def iterate_nmf(reduced_data, n, iterations):
+    sig = []
+    for i in range(iterations):
+        M = bootstrap(reduced_data)
+        P = np.zeros([M.shape[0], n])
+        model = NMF(n_components=n, init='random', solver='mu', max_iter=5000)
+        model_P = model.fit_transform(M)
+        norm = model_P.sum(axis=0)
+        for j in range(model_P.shape[1]):
+            P[:,j] = model_P[:,j]/norm[j]
+        sig.append(P)
+    sig = np.array(sig)
+    signatures = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
+    for i in range(len(sig)):
+        signatures[:,np.arange(n*i, n*(i+1))] = sig[i]
+    return signatures
+  
+def kmeans(signatures, n):
+    kmeans = KMeans(n_clusters=n)
+    kmeans.fit(signatures.T) 
+    cluster_sig = kmeans.cluster_centers_
+    return cluster_sig
 
-a = 'Breast_genomes_mutational_catalog_96_subs.txt'
-data = importdata(a)
-b = 'signatures.txt'
-COSMICsig = importdata(b)
-##isolate 5 breast cancer signatures
-COSMICsig = COSMICsig[:,[1,2,3,8,13]]
+def vanilla(a, n, iterations, b=None):
+    data = import_data(a)
+    reduced_data, rows_to_remove = dimension_reduction(data)
+    signatures = iterate_nmf(reduced_data, n, iterations)
+    cluster_sig = kmeans(signatures, n)
+    model_sig = np.insert(cluster_sig.T, rows_to_remove, 0, axis=0)
 
-###step 1: dimension reduction
-totalmutationsbytype = data.sum(axis=1)
-totalmutations = totalmutationsbytype.sum(axis=0)
-sortedtotalbytype = np.sort(totalmutationsbytype,axis=0)
-condition = np.cumsum(sortedtotalbytype) <= 0.01*totalmutations
-rowstoremove = np.argsort(totalmutationsbytype)[np.arange(sum(condition))]
-reducedData = np.delete(data,np.argsort(totalmutationsbytype)[np.arange(len(rowstoremove))],axis=0)
-scipy.io.savemat('reducedData.mat',{'reducedData': reducedData})
+    if b != None:
+        paper_sig = import_data(b)
+        paper_sig = paper_sig[:, [1,2,3,8,13]]     #don't know how to generalize this (extracting certain signatures)
+        diff1 = cosine_similarity(model_sig.T, paper_sig.T)
+        print('Comparing signatures:\n', diff1)
 
-###step 2: bootstrapping
-def bootstrap(x):
-    res = eng.bootstrap(x)
-    res = np.array(res)
-    return res
-
-###steps 3, 4: NMF, iterate
-numsig = COSMICsig.shape[1]
-sig = []
-iterations = 500
-eng = matlab.engine.start_matlab()
-for i in range(iterations):
-    M = bootstrap('reducedData.mat')    
-    P = np.zeros([M.shape[0],numsig])
-    model = NMF(n_components=numsig,init='random',solver='mu',max_iter=5000)
-    modelP = model.fit_transform(M)
-    ##scale columns of oldP and place results into P
-    norm = modelP.sum(axis=0)
-    for j in range(modelP.shape[1]):
-        P[:,j] = modelP[:,j]/norm[j]
-    ##store P into sig
-    sig.append(P)
-sig = np.array(sig)
-##reshape 3d array into 2d array
-signatures = np.zeros([M.shape[0],sig.shape[0]*sig.shape[2]])
-for i in range(len(sig)):
-    signatures[:,np.arange(numsig*i,numsig*(i+1))] = sig[i]
-
-###step 5: cluster
-kmeans = KMeans(n_clusters=numsig)
-kmeans.fit(np.transpose(signatures))
-clustersig = kmeans.cluster_centers_
-
-###insert zeros for removed mutation types
-modelsig = np.insert(np.transpose(clustersig),rowstoremove,0,axis=0)
-
-###cosine similarity
-diff = cosine_similarity(np.transpose(modelsig),np.transpose(COSMICsig))
-diff1 = cosine_similarity(np.transpose(modelsig),np.transpose(modelsig))
-diff2 = cosine_similarity(np.transpose(COSMICsig),np.transpose(COSMICsig))
-print('Comparing signatures:\n',diff)
-print('Comparing elements in produced signatures:\n',diff1)
-print('Comparing elements in COSMIC signatures:\n',diff2)
+    return model_sig
