@@ -5,6 +5,7 @@ from sklearn.cluster import KMeans
 from sklearn.metrics.pairwise import cosine_similarity
 import NMFalgorithm as nmfalg
 np.set_printoptions(suppress=True)
+import argparse
 
 def import_data(filename):    
     f = open(filename)
@@ -49,7 +50,7 @@ def iterate_nmf(reduced_data, n, iterations):
     for i in range(iterations):
         M = bootstrap(reduced_data)
         P = np.zeros([M.shape[0], n])
-        model = NMF(n_components=n, init='random', solver='mu', max_iter=5000)
+        model = NMF(n_components=n, init='random', solver='mu', max_iter=1000000)
         model_P = model.fit_transform(M)
         norm = model_P.sum(axis=0)
         for j in range(model_P.shape[1]):
@@ -67,6 +68,7 @@ def kmeans(signatures, n):
     cluster_sig = kmeans.cluster_centers_
     return cluster_sig
 
+#Make a function to compare produced sigs with given signature
 def vanilla(a, n, iterations, b=None, var=None):
     data = import_data(a)
     reduced_data, rows_to_remove = dimension_reduction(data)
@@ -84,7 +86,7 @@ def vanilla(a, n, iterations, b=None, var=None):
         paper_sig = paper_sig[:, [1,2,3,8,13]]     #don't know how to generalize this (extracting certain signatures)
         diff = cosine_similarity(model_sig.T, paper_sig.T)
         print('Comparing produced signatures to given signatures:\n', diff)
-
+    #Return signatures and exposures
     return model_sig
 
 ####################
@@ -123,5 +125,22 @@ def nsnmf(a, n, iterations, theta, b=None, var=None):
         paper_sig = paper_sig[:, [1,2,3,8,13]]
         diff = cosine_similarity(model_sig.T, paper_sig.T)
       print('Comparing produced signatures to given signatures:\n', diff)
-
+    #Return signatures and exposures
     return model_sig
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Has functions for vanilla NMF and non smooth NMF ")
+    parser.add_argument('-f', '--mutation_file', help="Mutation count data file", required=True)
+    parser.add_argument('-n', '--num_sig', help="Number of signatures", required=True)
+    parser.add_argument('-m', '--no_iter', help="Number of iterations (default = ", required=False, default = 500)
+    parser.add_argument('-flag', '--nmf_flag', help="flag for which NMF to use - van for Vanilla and ns for nonsmooth NMF", required=False, default = "van")
+    parser.add_argument('-theta', '--theta_val', help="theta value if using non smooth NMF (default 0.5)", required=False, default = 0.5)
+    parser.add_argument('-out', '--out_file', help="Output prefix for storing signature and exposure", required=False, default = "out") 
+    args = parser.parse_args()
+
+    if args.nmf_flag =="van":
+        signature, exposure = vanilla(args.mutation_file, int(args.num_sig), int(args.no_iter))
+    elif args.nmf_flag =="ns":
+        signature, exposure = nsnmf(args.mutation_file, int(args.num_sig), int(args.no_iter), args.theta_val)
+
+    
