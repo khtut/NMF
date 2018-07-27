@@ -1,20 +1,20 @@
-import numpy as np    
+import numpy as np
 
 ########## Basic NMF ##########
 
 def obj(V,W,H):
     d,n = V.shape
-    WH = np.dot(W,H)
+    WH = W.dot(H)
     F = (V * np.log(WH) - WH).sum()
     return F
 
 def updateW(V,W,H):
-    WH = np.dot(W,H)
+    WH = W.dot(H)
     W_new = W * V.dot(np.transpose(H))/WH.dot(np.transpose(H))
     return W_new
 
 def updateH(V,W,H):
-    WH = np.dot(W,H)
+    WH = W.dot(H)
     H_new = H * (np.transpose(W)).dot(V)/(np.transpose(W)).dot(WH)
     return H_new
 
@@ -40,7 +40,7 @@ def nmf(V,k):
 
     return W,H
 
-########## nsNMF ##########
+########## Nonsmooth NMF ##########
 
 def nsobj(V,W,S,H):
     d,n = V.shape
