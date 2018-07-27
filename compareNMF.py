@@ -10,7 +10,7 @@ realsig = np.load("example-signatures.npy")
 ########## basic NMF comparison ##########
 
 #using sklearn
-model = NMF(n_components=5,init='random',solver='mu',max_iter=5000)
+model = NMF(n_components=5,init='random',max_iter=5000)
 modelW = model.fit_transform(V)
 modelH = model.components_
 
