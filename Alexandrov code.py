@@ -95,19 +95,25 @@ def vanilla(a, n, iterations):
 
 def nonsmooth(reduced_data, n, iterations, theta):
     sig = []
+    exp = []
     for i in range(iterations):
         M = bootstrap(reduced_data)
         P = np.zeros([M.shape[0], n])
-        modelP, H = nmfalg.nsnmf(M, n, theta)     #uses nsNMF code stored in NMFalgorithm.py
-        norm = modelP.sum(axis=0)
-        for j in range(modelP.shape[1]):
-            P[:,j] = modelP[:,j]/norm[j]
+        model_P, model_E = nmfalg.nsnmf(M, n, theta)     #uses nsNMF code stored in NMFalgorithm.py
+        norm = model_P.sum(axis=0)
+        for j in range(model_P.shape[1]):
+            P[:,j] = model_P[:,j]/norm[j]
         sig.append(P)
+        exp.append(model_E)
     sig = np.array(sig)
-    signatures = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
+    exp = np.array(exp)
+    model_sig = np.zeros([M.shape[0], sig.shape[0]*sig.shape[2]])
     for i in range(len(sig)):
-        signatures[:,np.arange(n*i, n*(i+1))] = sig[i]
-    return model_sig, model_exp
+        model_sig[:,np.arange(n*i, n*(i+1))] = sig[i]
+    model_exp = np.zeros([exp.shape[0]*exp.shape[1], M.shape[1]])
+    for i in range(len(exp)):
+        model_exp[np.arange(n*i, n*(i+1)),:] = exp[i]
+    return model_sig, model_exp  
   
 def nsnmf(a, n, iterations, theta):
     data = import_data(a)
